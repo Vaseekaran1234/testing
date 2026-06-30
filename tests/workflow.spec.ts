@@ -10,9 +10,9 @@ test('Login test', async ({ page }) => {
 
     await loginPage.crmlogin('VASEEKARAN', 'rsoft', 'RSoft!@345');
     
-   //await Workflow.pro();
+    await Workflow.pro();
     
-   //await Workflow.cworkflow('WWE', 'email', 'subject');
+    await Workflow.cworkflow('WWE', 'email', 'subject');
     
     await Workflow.menu();
     await Workflow.module('rsssoftttt', '9597535460', 'Rsofyt real estate R2','vaseekaran@rsoft.in', 'loki', '100', '400000');
