@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 export class record {
     private createdEmail?: string;
     private createdName?: string;
@@ -20,8 +20,9 @@ export class record {
       // text field 
       await this.page.locator('[name="wwe_text"]').fill(cc);
 
-      // phone no field
+     // phone no field
       await this.page.locator('[name="wwe_phonenum"]').fill(num);
+      this.createdPhone = num;
 
       // Textarea 
       await this.page.locator('[name="wwe_textarea"]').fill(char);
@@ -32,6 +33,7 @@ export class record {
 
       //name
       await this.page.locator('[name="wwe_namefeild"]').fill(nfield);
+      this.createdName = nfield;
 
       //num 
       await this.page.locator('[name="wwe_number"]').fill(numfield);
@@ -49,95 +51,108 @@ export class record {
      }
 
 
-      async editEmail(newEmail: string, currentEmail = this.createdEmail) {
-        if (!currentEmail) {
-            throw new Error('Current email is required before editing the record email.');
-        }
-
-        const escapedEmail = currentEmail.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const row = this.page.locator(`[id^="row-"]:has([title="${escapedEmail}"])`).first();
-        const emailCell = row.locator('td').filter({
-            has: this.page.locator(`[title="${escapedEmail}"]`),
-        }).first();
-
-        await row.waitFor({ state: 'visible' });
-        await emailCell.hover();
-
-        await emailCell
-            .locator('.single-edit, .fa-pencil, .fa-pen, [class*="pencil"]')
+      async editEmail(newEmail: string) {
+        const emailCell = await this.findTitleCell(this.createdEmail, 'email');
+        await this.singleEditCell(emailCell, 'input[name="wwe_emailid"], input[type="email"], input', newEmail);
+        await this.page
+            .locator(`[id^="row-"]:has([title="${this.escapeCssString(newEmail)}"])`)
             .first()
-            .click();
-
-        const emailInput = emailCell.locator('input[name="wwe_emailid"], input[type="email"], input').first();
-        await emailInput.waitFor({ state: 'visible' });
-        await emailInput.fill(newEmail);
-        //btn tick-btn
-        await emailCell.locator('[class="btn tick-btn"]').first().click();
+            .waitFor({ state: 'visible' });
         this.createdEmail = newEmail;
       }
 
-     /* async editname(newName: string, currentName = this.createdName) {
-        if (!currentName) {
-            throw new Error('Current name is required before editing the record name.');
+      async editName(newName: string, currentName = this.createdName) {
+        const nameCell = await this.findTextCell(currentName, 'name');
+        await this.singleEditCell(nameCell, 'input[name="wwe_namefeild"], input[type="text"], input', newName);
+        this.createdName = newName;
+      }
+
+      async editname(newName: string, currentName = this.createdName) {
+        await this.editName(newName, currentName);
+      }
+
+      async editPhone(newPhone: string, currentPhone = this.createdPhone) {
+        const phoneCell = await this.findTextCell(currentPhone, 'phone number');
+        await this.singleEditCell(phoneCell, 'input[name="wwe_phonenum"], input[type="tel"], input', newPhone);
+        this.createdPhone = newPhone;
+      }
+
+      private getRecordRow() {
+        if (!this.createdEmail) {
+            throw new Error('Current email is required to find the created record row.');
         }
 
-        const escapedName = currentName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const row = this.page.locator(`[id^="row-"]:has([title="${escapedName}"])`).first();
-        const nameCell = row.locator('td').filter({
-            has: this.page.locator(`[title="${escapedName}"]`),
+        const escapedEmail = this.escapeCssString(this.createdEmail);
+        return this.page.locator(`[id^="row-"]:has([title="${escapedEmail}"])`).first();
+      }
+
+      private async findTitleCell(currentValue: string | undefined, fieldName: string) {
+        if (!currentValue) {
+            throw new Error(`Current ${fieldName} is required before editing the record ${fieldName}.`);
+        }
+
+        const row = this.getRecordRow();
+        const escapedValue = this.escapeCssString(currentValue);
+        const cell = row.locator('td').filter({
+            has: this.page.locator(`[title="${escapedValue}"]`),
         }).first();
 
-        await row.waitFor({ state: 'visible' });  
-        await nameCell.hover();  
-        
-        await nameCell //single-edit
-            .locator('.single-edit, .fa-pencil, .fa-pen, [class*="pencil"]')
+        await row.waitFor({ state: 'visible' });
+        await cell.waitFor({ state: 'visible' });
+        return cell;
+      }
+
+      private async findTextCell(currentValue: string | undefined, fieldName: string) {
+        if (!currentValue) {
+            throw new Error(`Current ${fieldName} is required before editing the record ${fieldName}.`);
+        }
+
+        const row = this.getRecordRow();
+        const escapedValue = this.escapeCssString(currentValue);
+        const cellText = new RegExp(`^\\s*${this.escapeRegex(currentValue)}\\s*$`);
+        const visiblePrefix = currentValue.slice(0, 7);
+        const cell = row.locator('td').filter({
+            has: this.page.locator(`[title="${escapedValue}"]`),
+        }).or(row.locator('td').filter({
+            hasText: cellText,
+        })).or(row.locator('td').filter({
+            hasText: currentValue,
+        })).or(row.locator('td').filter({
+            hasText: visiblePrefix,
+        })).first();
+
+        await row.waitFor({ state: 'visible' });
+        await cell.waitFor({ state: 'visible' });
+        return cell;
+      }
+
+      private async singleEditCell(cell: Locator, inputSelector: string, newValue: string) {
+        const visibleInputSelector = inputSelector
+            .split(',')
+            .map(selector => `${selector.trim()}:visible`)
+            .join(', ');
+
+        await cell.scrollIntoViewIfNeeded();
+        await cell.hover({ force: true });
+        await cell
+            .locator('.single-edit:visible, .fa-pencil:visible, .fa-pen:visible, [class*="pencil"]:visible')
             .first()
             .click();
 
-        const nameInput = nameCell.locator('input[name="wwe_namefeild"], input[type="text"], input').first();
-        await nameInput.waitFor({ state: 'visible' });
-        await nameInput.fill(newName);
-
-        //btn tick-btn
-        await nameCell.locator('[class="btn tick-btn"]').first().click();
-        this.createdName = newName;
-      }*/
-
-      async editPhone(newPhone: string, currentPhone = this.createdPhone) {
-        if (!currentPhone) {
-            throw new Error('Current phone number is required before editing the record phone number.');
-        } 
-
-        const escapedPhone = currentPhone.replace(/\\/g, '\\\\').replace(/"/g, '\\"');  
-        const row = this.page.locator(`[id^="row-"]:has([title="${escapedPhone}"])`).first();
-        const phoneCell = row.locator('td').filter({
-            has: this.page.locator(`[title="${escapedPhone}"]`),
-        }).first();
-
-
-        await row.waitFor({ state: 'visible' });
-        await phoneCell.hover();  
-        
-        await phoneCell //single-edit 
-            .locator('.single-edit, .fa-pencil, .fa-pen, [class*="pencil"]')
-            .first()
-            .click(); 
-
-        const phoneInput = phoneCell.locator('input[name="wwe_phonenum"], input[type="tel"], input').first();
-        await phoneInput.waitFor({ state: 'visible' });
-        await phoneInput.fill(newPhone);  
-         
-
-        //btn tick-btn
-        await phoneCell.locator('[class="btn tick-btn"]').first().click();
-        this.createdPhone = newPhone;   
-
+        const input = cell.locator(visibleInputSelector).first();
+        await input.waitFor({ state: 'visible' });
+        await input.fill(newValue);
+        await cell.locator('.tick-btn:visible, button.btn-success:visible, .btn-success:visible').first().click();
+        await input.waitFor({ state: 'hidden' });
       }
 
+      private escapeCssString(value: string) {
+        return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      }
 
-
-
+      private escapeRegex(value: string) {
+        return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
 
         
 
